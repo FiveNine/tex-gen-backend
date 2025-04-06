@@ -4,6 +4,7 @@ import { AiController } from './ai.controller';
 import { AiService } from './ai.service';
 import { TextureGenerationProcessor } from './processors/texture-generation.processor';
 import { PrismaModule } from '../prisma/prisma.module';
+import { TexturesModule } from '../textures/textures.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { PrismaModule } from '../prisma/prisma.module';
       name: 'texture-generation',
     }),
     PrismaModule,
+    TexturesModule,
   ],
   controllers: [AiController],
   providers: [AiService, TextureGenerationProcessor],
