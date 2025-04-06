@@ -1,0 +1,306 @@
+# Texture Generation API Documentation
+
+## Base URL
+```
+http://localhost:3000
+```
+
+## Authentication
+All endpoints except `/auth/register` and `/auth/login` require a JWT token in the Authorization header:
+```
+Authorization: Bearer <token>
+```
+
+## Endpoints
+
+### Authentication
+
+#### Register User
+```http
+POST /auth/register
+```
+
+Request body:
+```json
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
+
+Response:
+```json
+{
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "subscriptionPlan": "free",
+    "credits": 5
+  },
+  "accessToken": "jwt_token",
+  "refreshToken": "refresh_token"
+}
+```
+
+#### Login
+```http
+POST /auth/login
+```
+
+Request body:
+```json
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
+
+Response:
+```json
+{
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "subscriptionPlan": "free",
+    "credits": 5
+  },
+  "accessToken": "jwt_token",
+  "refreshToken": "refresh_token"
+}
+```
+
+#### Refresh Token
+```http
+POST /auth/refresh
+```
+
+Request body:
+```json
+{
+  "refreshToken": "refresh_token"
+}
+```
+
+Response:
+```json
+{
+  "accessToken": "jwt_token",
+  "refreshToken": "refresh_token"
+}
+```
+
+### AI Operations
+
+#### Generate Texture
+```http
+POST /ai/generate
+```
+
+Request body:
+```json
+{
+  "prompt": "A detailed description of the desired texture",
+  "imagePaths": ["path/to/reference/image1.png", "path/to/reference/image2.png"]
+}
+```
+
+Response:
+```json
+{
+  "jobId": "uuid",
+  "status": "pending"
+}
+```
+
+#### Get Job Status
+```http
+GET /ai/status/:jobId
+```
+
+Response:
+```json
+{
+  "status": "pending" | "processing" | "completed" | "failed"
+}
+```
+
+#### Get Job Results
+```http
+GET /ai/job-results/:jobId
+```
+
+Response:
+```json
+{
+  "status": "completed",
+  "result": {
+    "id": "uuid",
+    "name": "AI-generated descriptive title",
+    "slug": "ai-generated-descriptive-title",
+    "tags": ["generated"],
+    "s3Key": "path/to/texture.png",
+    "resolution": "1k" | "4k",
+    "userId": "uuid",
+    "createdAt": "2024-04-02T12:00:00Z",
+    "updatedAt": "2024-04-02T12:00:00Z"
+  }
+}
+```
+
+#### Modify Texture
+```http
+POST /ai/modify
+```
+
+Request body:
+```json
+{
+  "jobId": "uuid",
+  "prompt": "Make it darker and more rustic",
+  "imageUrl": "url_of_image_to_modify"
+}
+```
+
+Response:
+```json
+{
+  "jobId": "uuid",
+  "status": "pending"
+}
+```
+
+#### Upscale Texture
+```http
+POST /ai/upscale
+```
+
+Request body:
+```json
+{
+  "jobId": "uuid",
+  "imageUrl": "url_of_image_to_upscale"
+}
+```
+
+Response:
+```json
+{
+  "jobId": "uuid",
+  "status": "pending"
+}
+```
+
+### Texture Management
+
+#### List Textures
+```http
+GET /textures?cursor=last_id&limit=10
+```
+
+Response:
+```json
+{
+  "textures": [
+    {
+      "id": "uuid",
+      "name": "AI-generated descriptive title",
+      "slug": "ai-generated-descriptive-title",
+      "tags": ["generated"],
+      "s3Key": "path/to/texture.png",
+      "resolution": "256x256" | "1024x1024",
+      "userId": "uuid",
+      "createdAt": "2024-04-02T12:00:00Z",
+      "updatedAt": "2024-04-02T12:00:00Z"
+    }
+  ],
+  "nextCursor": "next_page_cursor"
+}
+```
+
+#### Search Textures
+```http
+GET /textures/search?q=search_term&cursor=last_id&limit=10
+```
+
+Response:
+```json
+{
+  "textures": [
+    {
+      "id": "uuid",
+      "name": "AI-generated descriptive title",
+      "slug": "ai-generated-descriptive-title",
+      "tags": ["generated"],
+      "s3Key": "path/to/texture.png",
+      "resolution": "256x256" | "1024x1024",
+      "userId": "uuid",
+      "createdAt": "2024-04-02T12:00:00Z",
+      "updatedAt": "2024-04-02T12:00:00Z"
+    }
+  ],
+  "nextCursor": "next_page_cursor"
+}
+```
+
+#### Get Texture
+```http
+GET /textures/:id
+```
+
+Response:
+```json
+{
+  "id": "uuid",
+  "name": "AI-generated descriptive title",
+  "slug": "ai-generated-descriptive-title",
+  "tags": ["generated"],
+  "s3Key": "path/to/texture.png",
+  "resolution": "256x256" | "1024x1024",
+  "userId": "uuid",
+  "createdAt": "2024-04-02T12:00:00Z",
+  "updatedAt": "2024-04-02T12:00:00Z"
+}
+```
+
+#### Delete Texture
+```http
+DELETE /textures/:id
+```
+
+Response: 204 No Content
+
+## Error Responses
+
+All endpoints may return the following error responses:
+
+```json
+{
+  "statusCode": 400,
+  "message": "Error message",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized",
+  "error": "Unauthorized"
+}
+```
+
+```json
+{
+  "statusCode": 404,
+  "message": "Resource not found",
+  "error": "Not Found"
+}
+```
+
+## Notes
+
+1. All endpoints require authentication except `/auth/register` and `/auth/login`
+2. The API uses cursor-based pagination for list endpoints
+3. Image generation and modification operations are asynchronous and use a job queue
+4. All generated textures are automatically uploaded to S3 and stored in the database
+5. Each texture's name and slug are automatically generated by AI based on the visual content 

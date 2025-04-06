@@ -1,0 +1,86 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String         @id @default(uuid())
+  email             String         @unique
+  passwordHash      String
+  stripeCustomerId  String?       @map("stripe_customer_id")
+  subscriptionPlan  String        @default("free") @map("subscription_plan")
+  credits           Int           @default(5)
+  textures          Texture[]
+  generationJobs    GenerationJob[]
+  modificationJobs  ModificationJob[]
+  upscaleJobs       UpscaleJob[]
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Texture {
+  id                String   @id @default(uuid())
+  name              String
+  slug              String   @unique
+  tags              String[]
+  s3Key             String   @map("s3_key")
+  resolution        String   // "1k" or "4k"
+  userId            String   @map("user_id")
+  user              User     @relation(fields: [userId], references: [id])
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("textures")
+}
+
+model GenerationJob {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  user              User     @relation(fields: [userId], references: [id])
+  prompt            String
+  status            String   // "pending", "processing", "completed", "failed"
+  genImages         String[]
+  imagePaths        String[] @map("image_paths")
+  size              String
+  modificationJob   ModificationJob[]
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("generation_jobs")
+}
+
+model ModificationJob {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  user              User     @relation(fields: [userId], references: [id])
+  generationJobId   String   @map("generation_job_id")
+  generationJob     GenerationJob @relation(fields: [generationJobId], references: [id])
+  prompt            String
+  status            String   // "pending", "processing", "completed", "failed"
+  images            String[]
+  modifications     Int
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("modification_jobs")
+}
+
+model UpscaleJob {
+  id                String  @id @default(uuid())
+  userId            String  @map("user_id")
+  user              User    @relation(fields: [userId], references: [id])
+  status            String
+  originalImage     String
+  upscaledImage     String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+}
