@@ -64,6 +64,11 @@ export class AiService {
         imagePaths: dto.imagePaths,
       });
 
+      await job.update({
+        ...job.data,
+        jobId: job.id.toString(),
+      });
+
       return { jobId: job.id.toString(), status: 'pending' };
     } catch (error) {
       if (
@@ -132,6 +137,10 @@ export class AiService {
     type: string,
     result?: string[],
   ) {
+    if (!jobId) {
+      throw new BadRequestException('Job ID is required');
+    }
+
     if (type === 'generate') {
       await this.prisma.generationJob.update({
         where: { id: jobId },
@@ -175,10 +184,15 @@ export class AiService {
 
       const job = await this.textureQueue.add('modify', {
         userId,
-        jobId: dto.jobId,
+        originalJobId: dto.jobId,
         imageUrl: dto.imageUrl,
         prompt: dto.prompt,
         imagePaths: dto.imagePaths,
+      });
+
+      await job.update({
+        ...job.data,
+        jobId: job.id.toString(),
       });
 
       return { jobId: job.id.toString(), status: 'pending' };
@@ -209,7 +223,12 @@ export class AiService {
 
       const job = await this.textureQueue.add('upscale', {
         userId,
-        jobId,
+        originalJobId: jobId,
+      });
+
+      await job.update({
+        ...job.data,
+        jobId: job.id.toString(),
       });
 
       return { jobId: job.id.toString(), status: 'pending' };
