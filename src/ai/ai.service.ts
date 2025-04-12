@@ -7,18 +7,10 @@ import {
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PrismaService } from '../prisma/prisma.service';
-import { join } from 'path';
-import { readFile } from 'fs/promises';
-import {
-  ChatCompletionMessageParam,
-  ChatCompletionContentPart,
-} from 'openai/resources/chat/completions';
 import OpenAI from 'openai';
 import { ConfigService } from '@nestjs/config';
-import { GenerationJob, ModificationJob, Prisma } from '@prisma/client';
 import { GenerateImageDto } from './dto/generate-image.dto';
 import { ModifyImageDto } from './dto/modify-image.dto';
-import { UpscaleImageDto } from './dto/upscale-image.dto';
 
 type DalleSize =
   | '256x256'
@@ -89,24 +81,27 @@ export class AiService {
 
   async getJobStatus(jobId: string) {
     try {
-      const job = await this.textureQueue.getJob(jobId);
-      if (!job) {
+      const dbJob =
+        (await this.prisma.generationJob.findUnique({
+          where: { id: jobId },
+        })) ||
+        (await this.prisma.modificationJob.findUnique({
+          where: { id: jobId },
+        })) ||
+        (await this.prisma.upscaleJob.findUnique({
+          where: { id: jobId },
+        }));
+
+      if (!dbJob) {
         throw new NotFoundException('Job not found');
       }
 
-      const state = await job.getState();
-      const progress =
-        typeof job.progress === 'function'
-          ? await job.progress()
-          : job.progress;
-      const result = job.returnvalue;
-
       return {
-        id: job.id.toString(),
-        state,
-        progress: typeof progress === 'number' ? progress : 0,
-        result,
-        status: state,
+        id: jobId,
+        state: dbJob.status,
+        progress: 0, // Progress is not stored in database
+        result: null, // Result is stored in specific fields (genImages, images, upscaledImage)
+        status: dbJob.status,
       };
     } catch (error) {
       if (error instanceof NotFoundException) {
