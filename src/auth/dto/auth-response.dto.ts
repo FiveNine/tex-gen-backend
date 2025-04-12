@@ -35,9 +35,17 @@ export class UserResponseDto {
 export class AuthResponseDto {
   @ApiProperty({
     description: 'User information',
-    type: UserResponseDto,
+    example: {
+      id: '123',
+      email: 'user@example.com',
+      name: 'John Doe',
+    },
   })
-  user: UserResponseDto;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+  };
 
   @ApiProperty({
     description: 'JWT access token',

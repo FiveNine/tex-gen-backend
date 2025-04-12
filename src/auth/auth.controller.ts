@@ -39,44 +39,24 @@ export class AuthController {
   @ApiResponse({
     status: 201,
     description: 'User registered successfully',
-    type: UserResponseDto,
+    type: AuthResponseDto,
   })
-  @ApiResponse({
-    status: 400,
-    description: 'Email already exists',
-    type: ErrorResponseDto,
-  })
-  async register(@Body() registerDto: RegisterDto) {
-    const result = await this.authService.register(registerDto);
-
-    if ('error' in result) {
-      return result;
-    }
-
-    return result;
+  @ApiResponse({ status: 400, description: 'Invalid input' })
+  @ApiResponse({ status: 409, description: 'Email already registered' })
+  async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
+    return this.authService.register(registerDto);
   }
 
   @Post('login')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login with email and password' })
+  @ApiOperation({ summary: 'Login user' })
   @ApiResponse({
     status: 200,
-    description: 'Login successful',
-    type: UserResponseDto,
+    description: 'User logged in successfully',
+    type: AuthResponseDto,
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Invalid credentials',
-    type: ErrorResponseDto,
-  })
-  async login(@Body() loginDto: LoginDto) {
-    const result = await this.authService.login(loginDto);
-
-    if ('error' in result) {
-      return result;
-    }
-
-    return result;
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
+    return this.authService.login(loginDto);
   }
 
   @Post('refresh')
@@ -90,13 +70,7 @@ export class AuthController {
     type: ErrorResponseDto,
   })
   async refreshToken(@User('sub') userId: string) {
-    const result = await this.authService.refreshToken(userId);
-
-    if ('error' in result) {
-      return result;
-    }
-
-    return result;
+    return this.authService.refreshToken(userId);
   }
 
   @Get('me')

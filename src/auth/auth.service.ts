@@ -21,6 +21,30 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
+  private async generateTokens(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(
+        { sub: userId, email: user.email },
+        { expiresIn: '15m' },
+      ),
+      this.jwtService.signAsync(
+        { sub: userId, email: user.email },
+        { expiresIn: '7d' },
+      ),
+    ]);
+
+    return { accessToken, refreshToken };
+  }
+
   async register(registerDto: RegisterDto) {
     try {
       const existingUser = await this.prisma.user.findUnique({
@@ -41,7 +65,12 @@ export class AuthService {
       });
 
       const { passwordHash, ...result } = user;
-      return result;
+      const tokens = await this.generateTokens(user.id);
+
+      return {
+        user: result,
+        ...tokens,
+      };
     } catch (error) {
       if (error instanceof ConflictException) {
         throw error;
@@ -68,14 +97,12 @@ export class AuthService {
         throw new UnauthorizedException('Invalid credentials');
       }
 
-      const payload = { sub: user.id, email: user.email };
+      const { passwordHash, ...result } = user;
+      const tokens = await this.generateTokens(user.id);
+
       return {
-        access_token: await this.jwtService.signAsync(payload),
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-        },
+        user: result,
+        ...tokens,
       };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
@@ -86,20 +113,12 @@ export class AuthService {
   }
 
   async refreshToken(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      const error: ErrorResponseDto = {
-        statusCode: HttpStatus.UNAUTHORIZED,
-        message: 'User not found',
-        error: 'UNAUTHORIZED',
-      };
-      return { error };
+    try {
+      const tokens = await this.generateTokens(userId);
+      return tokens;
+    } catch (error) {
+      throw new BadRequestException('Failed to refresh token');
     }
-
-    return this.generateTokens(user);
   }
 
   async getUser(userId: string) {
@@ -122,14 +141,6 @@ export class AuthService {
       name: user.name,
       subscriptionPlan: user.subscriptionPlan,
       credits: user.credits,
-    };
-  }
-
-  private generateTokens(user: { id: string; email: string }) {
-    const payload = { sub: user.id, email: user.email };
-    return {
-      accessToken: this.jwtService.sign(payload),
-      refreshToken: this.jwtService.sign(payload, { expiresIn: '7d' }),
     };
   }
 
