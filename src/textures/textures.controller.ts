@@ -17,12 +17,14 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 import {
   TextureResponseDto,
   PaginatedTexturesResponseDto,
   UploadUrlResponseDto,
 } from './dto/textures-response.dto';
+import { User } from '../auth/decorators/user.decorator';
 
 interface RequestWithUser extends Request {
   user: {
@@ -39,58 +41,42 @@ export class TexturesController {
   constructor(private readonly texturesService: TexturesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get all textures' })
-  @ApiResponse({
-    status: 200,
-    description: 'List of textures retrieved successfully',
-    type: PaginatedTexturesResponseDto,
-  })
+  @ApiOperation({ summary: 'Get all textures for the authenticated user' })
+  @ApiResponse({ type: PaginatedTexturesResponseDto })
+  @ApiQuery({ name: 'cursor', required: false })
+  @ApiQuery({ name: 'limit', required: false })
   async findAll(
-    @Req() req: RequestWithUser,
+    @User('id') userId: string,
     @Query('cursor') cursor?: string,
-    @Query('limit') limit?: string,
+    @Query('limit') limit?: number,
   ): Promise<PaginatedTexturesResponseDto> {
-    return this.texturesService.findAll(
-      req.user.id,
-      cursor,
-      limit ? parseInt(limit) : undefined,
-    );
+    return this.texturesService.findAll(userId, cursor, limit);
   }
 
   @Get('search')
-  @ApiOperation({ summary: 'Search textures' })
-  @ApiResponse({
-    status: 200,
-    description: 'Search results retrieved successfully',
-    type: PaginatedTexturesResponseDto,
-  })
+  @ApiOperation({ summary: 'Search textures by name or tags' })
+  @ApiResponse({ type: PaginatedTexturesResponseDto })
+  @ApiQuery({ name: 'query', required: true })
+  @ApiQuery({ name: 'cursor', required: false })
+  @ApiQuery({ name: 'limit', required: false })
   async search(
-    @Req() req: RequestWithUser,
-    @Query('q') query: string,
+    @User('id') userId: string,
+    @Query('query') query: string,
     @Query('cursor') cursor?: string,
-    @Query('limit') limit?: string,
+    @Query('limit') limit?: number,
   ): Promise<PaginatedTexturesResponseDto> {
-    return this.texturesService.search(
-      req.user.id,
-      query,
-      cursor,
-      limit ? parseInt(limit) : undefined,
-    );
+    return this.texturesService.search(userId, query, cursor, limit);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a texture by ID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Texture retrieved successfully',
-    type: TextureResponseDto,
-  })
+  @ApiOperation({ summary: 'Get a specific texture by ID' })
+  @ApiResponse({ type: TextureResponseDto })
   @ApiResponse({ status: 404, description: 'Texture not found' })
   async findOne(
     @Param('id') id: string,
-    @Req() req: RequestWithUser,
+    @User('id') userId: string,
   ): Promise<TextureResponseDto> {
-    return this.texturesService.findOne(id, req.user.id);
+    return this.texturesService.findOne(id, userId);
   }
 
   @Post()
@@ -117,26 +103,20 @@ export class TexturesController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a texture' })
-  @ApiResponse({
-    status: 200,
-    description: 'Texture deleted successfully',
-    type: TextureResponseDto,
-  })
+  @ApiResponse({ type: TextureResponseDto })
   @ApiResponse({ status: 404, description: 'Texture not found' })
   async delete(
     @Param('id') id: string,
-    @Req() req: RequestWithUser,
+    @User('id') userId: string,
   ): Promise<TextureResponseDto> {
-    return this.texturesService.delete(id, req.user.id);
+    return this.texturesService.delete(id, userId);
   }
 
   @Get('upload-url')
-  @ApiOperation({ summary: 'Get a presigned URL for uploading a texture' })
-  @ApiResponse({
-    status: 200,
-    description: 'Upload URL generated successfully',
-    type: UploadUrlResponseDto,
+  @ApiOperation({
+    summary: 'Get a pre-signed URL for uploading a texture to S3',
   })
+  @ApiResponse({ type: UploadUrlResponseDto })
   async getUploadUrl(): Promise<UploadUrlResponseDto> {
     return this.texturesService.getUploadUrl();
   }

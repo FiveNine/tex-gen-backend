@@ -19,6 +19,8 @@ import {
   TokenResponseDto,
   UserResponseDto,
 } from './dto/auth-response.dto';
+import { ErrorResponseDto } from './dto/error-response.dto';
+import { User } from './decorators/user.decorator';
 
 interface RequestWithUser extends Request {
   user: {
@@ -33,67 +35,97 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new user' })
-  @ApiBody({ type: RegisterDto })
   @ApiResponse({
     status: 201,
-    description: 'User successfully registered',
-    type: AuthResponseDto,
+    description: 'User registered successfully',
+    type: UserResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
-    const { email, name, password } = registerDto;
-    return this.authService.register(email, name, password);
+  @ApiResponse({
+    status: 400,
+    description: 'Email already exists',
+    type: ErrorResponseDto,
+  })
+  async register(@Body() registerDto: RegisterDto) {
+    const result = await this.authService.register(
+      registerDto.email,
+      registerDto.name,
+      registerDto.password,
+    );
+
+    if ('error' in result) {
+      return result;
+    }
+
+    return result;
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login user' })
-  @ApiBody({ type: LoginDto })
+  @ApiOperation({ summary: 'Login with email and password' })
   @ApiResponse({
     status: 200,
-    description: 'User successfully logged in',
-    type: AuthResponseDto,
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
-    const { email, password } = loginDto;
-    return this.authService.login(email, password);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Post('refresh')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Refresh access token' })
-  @ApiBody({
-    schema: {
-      properties: {
-        refreshToken: { type: 'string' },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Token successfully refreshed',
-    type: TokenResponseDto,
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async refresh(
-    @Body('refreshToken') refreshToken: string,
-  ): Promise<TokenResponseDto> {
-    return this.authService.refreshToken(refreshToken);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Get('me')
-  @ApiOperation({ summary: 'Get current user' })
-  @ApiResponse({
-    status: 200,
-    description: 'Current user details',
+    description: 'Login successful',
     type: UserResponseDto,
   })
-  async me(@Req() req: RequestWithUser): Promise<UserResponseDto> {
-    return this.authService.getUser(req.user.id);
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid credentials',
+    type: ErrorResponseDto,
+  })
+  async login(@Body() loginDto: LoginDto) {
+    const result = await this.authService.login(
+      loginDto.email,
+      loginDto.password,
+    );
+
+    if ('error' in result) {
+      return result;
+    }
+
+    return result;
+  }
+
+  @Post('refresh')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refresh access token' })
+  @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
+  @ApiResponse({
+    status: 401,
+    description: 'User not found',
+    type: ErrorResponseDto,
+  })
+  async refreshToken(@User('sub') userId: string) {
+    const result = await this.authService.refreshToken(userId);
+
+    if ('error' in result) {
+      return result;
+    }
+
+    return result;
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get current user profile' })
+  @ApiResponse({
+    status: 200,
+    description: 'User profile retrieved successfully',
+    type: UserResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+    type: ErrorResponseDto,
+  })
+  async getUser(@User('sub') userId: string) {
+    const result = await this.authService.getUser(userId);
+
+    if ('error' in result) {
+      return result;
+    }
+
+    return result;
   }
 }

@@ -48,7 +48,11 @@ export class AiService {
       select: { credits: true },
     });
 
-    if (!user || user.credits < 1) {
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (user.credits < 1) {
       throw new Error('Insufficient credits');
     }
 

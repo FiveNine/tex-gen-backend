@@ -2,11 +2,13 @@ import {
   Injectable,
   UnauthorizedException,
   NotFoundException,
+  HttpStatus,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { UserResponseDto } from './dto/auth-response.dto';
+import { ErrorResponseDto } from './dto/error-response.dto';
 
 @Injectable()
 export class AuthService {
@@ -21,7 +23,12 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new UnauthorizedException('Email already exists');
+      const error: ErrorResponseDto = {
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: 'Email already exists',
+        error: 'BAD_REQUEST',
+      };
+      return { error };
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -48,32 +55,29 @@ export class AuthService {
     };
   }
 
-  async login(
-    email: string,
-    password: string,
-  ): Promise<{
-    user: {
-      id: string;
-      email: string;
-      name: string;
-      subscriptionPlan: string;
-      credits: number;
-    };
-    accessToken: string;
-    refreshToken: string;
-  }> {
+  async login(email: string, password: string) {
     const user = await this.prisma.user.findUnique({
       where: { email },
     });
 
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      const error: ErrorResponseDto = {
+        statusCode: HttpStatus.UNAUTHORIZED,
+        message: 'Invalid credentials',
+        error: 'UNAUTHORIZED',
+      };
+      return { error };
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      const error: ErrorResponseDto = {
+        statusCode: HttpStatus.UNAUTHORIZED,
+        message: 'Invalid credentials',
+        error: 'UNAUTHORIZED',
+      };
+      return { error };
     }
 
     const tokens = this.generateTokens(user);
@@ -96,19 +100,29 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      const error: ErrorResponseDto = {
+        statusCode: HttpStatus.UNAUTHORIZED,
+        message: 'User not found',
+        error: 'UNAUTHORIZED',
+      };
+      return { error };
     }
 
     return this.generateTokens(user);
   }
 
-  async getUser(userId: string): Promise<UserResponseDto> {
+  async getUser(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      const error: ErrorResponseDto = {
+        statusCode: HttpStatus.NOT_FOUND,
+        message: 'User not found',
+        error: 'NOT_FOUND',
+      };
+      return { error };
     }
 
     return {
