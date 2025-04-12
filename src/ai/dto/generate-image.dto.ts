@@ -17,13 +17,6 @@ export class GenerateImageDto {
   prompt: string;
 
   @ApiProperty({
-    description: 'The user ID who is generating the texture',
-    example: 'cl1234567890',
-  })
-  @IsString()
-  userId: string;
-
-  @ApiProperty({
     description: 'Optional array of reference image paths',
     example: ['path/to/reference1.jpg', 'path/to/reference2.jpg'],
     required: false,

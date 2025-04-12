@@ -51,8 +51,9 @@ export class AiController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async generateTexture(
     @Body() dto: GenerateImageDto,
+    @CurrentUser() user: { id: string },
   ): Promise<JobResponseDto> {
-    return this.aiService.generateTexture(dto);
+    return this.aiService.generateTexture(user.id, dto);
   }
 
   @Get('status/:jobId')
@@ -116,8 +117,11 @@ export class AiController {
   @ApiResponse({ status: 400, description: 'Invalid input' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Texture not found' })
-  async modifyTexture(@Body() dto: ModifyImageDto): Promise<JobResponseDto> {
-    return this.aiService.modifyTexture(dto);
+  async modifyTexture(
+    @Body() dto: ModifyImageDto,
+    @CurrentUser() user: { id: string },
+  ): Promise<JobResponseDto> {
+    return this.aiService.modifyTexture(user.id, dto);
   }
 
   @Post('upscale')
@@ -130,7 +134,10 @@ export class AiController {
   @ApiResponse({ status: 400, description: 'Invalid input' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Texture not found' })
-  async upscaleTexture(@Body() dto: UpscaleImageDto): Promise<JobResponseDto> {
-    return this.aiService.upscaleTexture(dto);
+  async upscaleTexture(
+    @Body() dto: UpscaleImageDto,
+    @CurrentUser() user: { id: string },
+  ): Promise<JobResponseDto> {
+    return this.aiService.upscaleTexture(user.id, dto.jobId);
   }
 }

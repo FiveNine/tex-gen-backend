@@ -47,11 +47,7 @@ export class AuthController {
     type: ErrorResponseDto,
   })
   async register(@Body() registerDto: RegisterDto) {
-    const result = await this.authService.register(
-      registerDto.email,
-      registerDto.name,
-      registerDto.password,
-    );
+    const result = await this.authService.register(registerDto);
 
     if ('error' in result) {
       return result;
@@ -74,10 +70,7 @@ export class AuthController {
     type: ErrorResponseDto,
   })
   async login(@Body() loginDto: LoginDto) {
-    const result = await this.authService.login(
-      loginDto.email,
-      loginDto.password,
-    );
+    const result = await this.authService.login(loginDto);
 
     if ('error' in result) {
       return result;

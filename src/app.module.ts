@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { AiModule } from './ai/ai.module';
 import { TexturesModule } from './textures/textures.module';
 import { MiddlewareModule } from './middleware/middleware.module';
+import { S3Service } from './common/services/s3.service';
 
 @Module({
   imports: [
@@ -27,6 +28,6 @@ import { MiddlewareModule } from './middleware/middleware.module';
     MiddlewareModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, S3Service],
 })
 export class AppModule {}

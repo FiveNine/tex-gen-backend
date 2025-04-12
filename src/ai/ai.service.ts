@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { PrismaService } from '../prisma/prisma.service';
@@ -39,69 +44,65 @@ export class AiService {
     this.openai = new OpenAI({ apiKey });
   }
 
-  async generateTexture(dto: GenerateImageDto) {
-    const { prompt, userId, imagePaths, size = '1024x1024' } = dto;
+  async generateTexture(userId: string, dto: GenerateImageDto) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
 
-    // Check user credits
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { credits: true },
-    });
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
 
-    if (!user) {
-      throw new Error('User not found');
-    }
+      if (user.credits <= 0) {
+        throw new BadRequestException('Insufficient credits');
+      }
 
-    if (user.credits < 1) {
-      throw new Error('Insufficient credits');
-    }
-
-    // Create generation job
-    const job = await this.prisma.generationJob.create({
-      data: {
+      const job = await this.textureQueue.add('generate', {
         userId,
-        prompt,
-        size,
-        status: 'pending',
-        imagePaths,
-        genImages: [],
-      },
-    });
+        prompt: dto.prompt,
+        imagePaths: dto.imagePaths,
+      });
 
-    // Add job to queue
-    await this.textureQueue.add('generate', {
-      jobId: job.id,
-      userId,
-      prompt,
-      imagePaths,
-      size,
-    });
-
-    // Deduct credits
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { credits: { decrement: 1 } },
-    });
-
-    return {
-      jobId: job.id,
-      status: 'pending',
-    };
+      return { jobId: job.id.toString(), status: 'pending' };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to generate texture');
+    }
   }
 
   async getJobStatus(jobId: string) {
-    const job = await this.prisma.generationJob.findFirst({
-      where: { id: jobId },
-    });
+    try {
+      const job = await this.textureQueue.getJob(jobId);
+      if (!job) {
+        throw new NotFoundException('Job not found');
+      }
 
-    if (!job) {
-      throw new BadRequestException('Job not found');
+      const state = await job.getState();
+      const progress =
+        typeof job.progress === 'function'
+          ? await job.progress()
+          : job.progress;
+      const result = job.returnvalue;
+
+      return {
+        id: job.id.toString(),
+        state,
+        progress: typeof progress === 'number' ? progress : 0,
+        result,
+        status: state,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to get job status');
     }
-
-    return {
-      status: job.status,
-      progress: job.status === 'completed' ? 100 : 0,
-    };
   }
 
   async getJobResults(jobId: string) {
@@ -158,136 +159,68 @@ export class AiService {
     }
   }
 
-  async modifyTexture(dto: ModifyImageDto) {
-    const { jobId, prompt, imageUrl, userId } = dto;
-
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      throw new BadRequestException('User not found');
-    }
-
-    let job: GenerationJob | ModificationJob | null =
-      await this.prisma.generationJob.findFirst({
-        where: { id: jobId, status: 'completed', userId },
+  async modifyTexture(userId: string, dto: ModifyImageDto) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
       });
 
-    if (!job) {
-      job = await this.prisma.modificationJob.findFirst({
-        where: { id: jobId, status: 'completed', userId },
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      if (user.credits <= 0) {
+        throw new BadRequestException('Insufficient credits');
+      }
+
+      const job = await this.textureQueue.add('modify', {
+        userId,
+        jobId: dto.jobId,
+        imageUrl: dto.imageUrl,
+        prompt: dto.prompt,
+        imagePaths: dto.imagePaths,
       });
+
+      return { jobId: job.id.toString(), status: 'pending' };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to modify texture');
     }
-
-    if (!job) {
-      throw new BadRequestException('Job not found or not completed');
-    }
-
-    const imageToModify =
-      'genImages' in job
-        ? job.genImages.find((image) => image === imageUrl)
-        : job.images.find((image) => image === imageUrl);
-
-    if (!imageToModify) {
-      throw new BadRequestException('Image not found in genImages');
-    }
-
-    const modificationJob = await this.prisma.modificationJob.findFirst({
-      where: {
-        generationJobId: jobId,
-      },
-    });
-
-    if (modificationJob) {
-      await this.prisma.modificationJob.update({
-        where: { id: modificationJob.id },
-        data: {
-          prompt,
-          status: 'pending',
-          modifications: {
-            increment: 1,
-          },
-        },
-      });
-    } else {
-      await this.prisma.modificationJob.create({
-        data: {
-          generationJobId: jobId,
-          userId: job.userId,
-          prompt,
-          status: 'pending',
-          images: [imageToModify],
-          modifications: 0,
-        },
-      });
-    }
-
-    await this.textureQueue.add('modify', {
-      jobId,
-      userId: job.userId,
-      prompt,
-      imageUrl,
-    });
-
-    return {
-      jobId,
-      status: 'pending',
-    };
   }
 
-  async upscaleTexture(dto: UpscaleImageDto) {
-    const { jobId, imageUrl, userId } = dto;
-
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      throw new BadRequestException('User not found');
-    }
-
-    let job: ModificationJob | GenerationJob | null =
-      await this.prisma.modificationJob.findFirst({
-        where: { id: jobId, status: 'completed', userId },
+  async upscaleTexture(userId: string, jobId: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
       });
 
-    if (!job) {
-      job = await this.prisma.generationJob.findFirst({
-        where: { id: jobId, status: 'completed', userId },
-      });
-    }
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
 
-    if (!job) {
-      throw new BadRequestException('Job not found or not completed');
-    }
+      if (user.credits <= 0) {
+        throw new BadRequestException('Insufficient credits');
+      }
 
-    const imageToUpscale =
-      'genImages' in job
-        ? job.genImages.find((image) => image === imageUrl)
-        : job.images.find((image) => image === imageUrl);
-
-    if (!imageToUpscale) {
-      throw new BadRequestException('Image not found in genImages');
-    }
-
-    const upscaleJob = await this.prisma.upscaleJob.create({
-      data: {
+      const job = await this.textureQueue.add('upscale', {
         userId,
-        status: 'pending',
-        originalImage: imageUrl,
-      },
-    });
+        jobId,
+      });
 
-    await this.textureQueue.add('upscale', {
-      jobId: upscaleJob.id,
-      userId,
-      imageUrl,
-    });
-
-    return {
-      jobId: upscaleJob.id,
-      status: 'pending',
-    };
+      return { jobId: job.id.toString(), status: 'pending' };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to upscale texture');
+    }
   }
 }

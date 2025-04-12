@@ -19,13 +19,6 @@ export class UpscaleImageDto {
   imageUrl: string;
 
   @ApiProperty({
-    description: 'The user ID who is upscaling the texture',
-    example: 'cl1234567890',
-  })
-  @IsString()
-  userId: string;
-
-  @ApiProperty({
     description: 'The target resolution for upscaling',
     example: '1024x1024',
     enum: ['1024x1024', '2048x2048'],

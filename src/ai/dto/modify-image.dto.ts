@@ -17,13 +17,6 @@ export class ModifyImageDto {
   imageUrl: string;
 
   @ApiProperty({
-    description: 'The user ID who is modifying the texture',
-    example: 'cl1234567890',
-  })
-  @IsString()
-  userId: string;
-
-  @ApiProperty({
     description: 'The prompt describing how to modify the texture',
     example: 'Make the stone wall more weathered and add more moss',
   })
