@@ -35,6 +35,8 @@
     "@types/bcrypt": "^5.0.2",
     "bcrypt": "^5.1.1",
     "bull": "^4.16.5",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
     "openai": "^4.91.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",

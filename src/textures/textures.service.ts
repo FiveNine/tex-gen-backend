@@ -38,17 +38,19 @@ export class TexturesService {
   async findAll(userId: string, cursor?: string, limit = 10) {
     const textures = await this.prisma.texture.findMany({
       where: { userId },
-      take: limit,
+      take: limit + 1, // Take one extra to check if there are more
       ...(cursor && { cursor: { id: cursor } }),
       orderBy: { createdAt: 'desc' },
     });
 
-    const nextCursor =
-      textures.length === limit ? textures[textures.length - 1].id : null;
+    const hasMore = textures.length > limit;
+    const items = hasMore ? textures.slice(0, -1) : textures;
+    const nextCursor = items.length > 0 ? items[items.length - 1].id : null;
 
     return {
-      textures,
+      textures: items,
       nextCursor,
+      hasMore,
     };
   }
 
@@ -107,17 +109,19 @@ export class TexturesService {
           { tags: { has: query } },
         ],
       },
-      take: limit,
+      take: limit + 1, // Take one extra to check if there are more
       ...(cursor && { cursor: { id: cursor } }),
       orderBy: { createdAt: 'desc' },
     });
 
-    const nextCursor =
-      textures.length === limit ? textures[textures.length - 1].id : null;
+    const hasMore = textures.length > limit;
+    const items = hasMore ? textures.slice(0, -1) : textures;
+    const nextCursor = items.length > 0 ? items[items.length - 1].id : null;
 
     return {
-      textures,
+      textures: items,
       nextCursor,
+      hasMore,
     };
   }
 
@@ -131,5 +135,20 @@ export class TexturesService {
 
     await this.s3Client.send(command);
     return key;
+  }
+
+  async getUploadUrl() {
+    const key = `uploads/${Date.now()}.png`;
+    const command = new PutObjectCommand({
+      Bucket: this.configService.get('AWS_S3_BUCKET'),
+      Key: key,
+      ContentType: 'image/png',
+    });
+
+    const url = await getSignedUrl(this.s3Client, command, { expiresIn: 3600 });
+    return {
+      url,
+      key,
+    };
   }
 }

@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -18,6 +19,44 @@ async function bootstrap() {
     optionsSuccessStatus: 204,
   });
 
+  // Swagger configuration
+  const config = new DocumentBuilder()
+    .setTitle('Texture Generation API')
+    .setDescription('API documentation for the Texture Generation service')
+    .setVersion('1.0')
+    .addSecurityRequirements('bearer')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'Please enter token in format: Bearer <JWT>',
+        in: 'header',
+      },
+      'bearer',
+    )
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      authAction: {
+        bearer: {
+          name: 'bearer',
+          schema: {
+            type: 'apiKey',
+            in: 'header',
+            name: 'Authorization',
+            description: 'Please enter token in format: Bearer <JWT>',
+          },
+          value: '',
+        },
+      },
+    },
+  });
+
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
+  console.log(`Listening on http://localhost:${process.env.PORT ?? 3000}`);
 }
 bootstrap();

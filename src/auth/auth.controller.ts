@@ -1,7 +1,20 @@
-import { Controller, Post, Body, UseGuards, Get, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Get,
+  Req,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Request } from 'express';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { AuthResponseDto, TokenResponseDto } from './dto/auth-response.dto';
 
 interface RequestWithUser extends Request {
   user: {
@@ -10,23 +23,61 @@ interface RequestWithUser extends Request {
   };
 }
 
+@ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  async register(@Body() body: { email: string; password: string }) {
-    return this.authService.register(body.email, body.password);
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Register a new user' })
+  @ApiBody({ type: RegisterDto })
+  @ApiResponse({
+    status: 201,
+    description: 'User successfully registered',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
+    const { email, password } = registerDto;
+    return this.authService.register(email, password);
   }
 
   @Post('login')
-  async login(@Body() body: { email: string; password: string }) {
-    return this.authService.login(body.email, body.password);
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login user' })
+  @ApiBody({ type: LoginDto })
+  @ApiResponse({
+    status: 200,
+    description: 'User successfully logged in',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
+    const { email, password } = loginDto;
+    return this.authService.login(email, password);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('refresh')
-  async refreshToken(@Req() req: RequestWithUser) {
-    return this.authService.refreshToken(req.user.id);
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refresh access token' })
+  @ApiBody({
+    schema: {
+      properties: {
+        refreshToken: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Token successfully refreshed',
+    type: TokenResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async refresh(
+    @Body('refreshToken') refreshToken: string,
+  ): Promise<TokenResponseDto> {
+    return this.authService.refreshToken(refreshToken);
   }
 }

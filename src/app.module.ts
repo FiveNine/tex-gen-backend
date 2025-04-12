@@ -7,6 +7,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { AiModule } from './ai/ai.module';
 import { TexturesModule } from './textures/textures.module';
+import { MiddlewareModule } from './middleware/middleware.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { TexturesModule } from './textures/textures.module';
     AuthModule,
     AiModule,
     TexturesModule,
+    MiddlewareModule,
   ],
   controllers: [AppController],
   providers: [AppService],

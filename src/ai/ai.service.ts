@@ -11,6 +11,9 @@ import {
 import OpenAI from 'openai';
 import { ConfigService } from '@nestjs/config';
 import { GenerationJob, ModificationJob, Prisma } from '@prisma/client';
+import { GenerateImageDto } from './dto/generate-image.dto';
+import { ModifyImageDto } from './dto/modify-image.dto';
+import { UpscaleImageDto } from './dto/upscale-image.dto';
 
 type DalleSize =
   | '256x256'
@@ -36,12 +39,9 @@ export class AiService {
     this.openai = new OpenAI({ apiKey });
   }
 
-  async generateTexture(
-    prompt: string,
-    userId: string,
-    imagePaths?: string[],
-    size: DalleSize = '1024x1024',
-  ) {
+  async generateTexture(dto: GenerateImageDto) {
+    const { prompt, userId, imagePaths, size = '1024x1024' } = dto;
+
     // Check user credits
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -85,16 +85,19 @@ export class AiService {
     };
   }
 
-  async getJobStatus(jobId: string, userId: string) {
+  async getJobStatus(jobId: string) {
     const job = await this.prisma.generationJob.findFirst({
-      where: { id: jobId, userId },
+      where: { id: jobId },
     });
 
     if (!job) {
       throw new BadRequestException('Job not found');
     }
 
-    return job.status;
+    return {
+      status: job.status,
+      progress: job.status === 'completed' ? 100 : 0,
+    };
   }
 
   async getJobResults(jobId: string) {
@@ -103,7 +106,19 @@ export class AiService {
       select: { genImages: true },
     });
 
-    return job?.genImages;
+    if (!job) {
+      throw new BadRequestException('Job not found');
+    }
+
+    return {
+      textures: job.genImages.map((imageUrl) => ({
+        id: jobId,
+        name: 'Generated Texture',
+        slug: `texture-${jobId}`,
+        s3Key: imageUrl,
+        resolution: '1024x1024',
+      })),
+    };
   }
 
   async handleWebhook(
@@ -139,12 +154,9 @@ export class AiService {
     }
   }
 
-  async modifyTexture(
-    jobId: string,
-    prompt: string,
-    imageUrl: string,
-    userId: string,
-  ) {
+  async modifyTexture(dto: ModifyImageDto) {
+    const { jobId, prompt, imageUrl, userId } = dto;
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -213,9 +225,16 @@ export class AiService {
       prompt,
       imageUrl,
     });
+
+    return {
+      jobId,
+      status: 'pending',
+    };
   }
 
-  async upscaleTexture(jobId: string, imageUrl: string, userId: string) {
+  async upscaleTexture(dto: UpscaleImageDto) {
+    const { jobId, imageUrl, userId } = dto;
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -253,7 +272,6 @@ export class AiService {
         userId,
         status: 'pending',
         originalImage: imageUrl,
-        upscaledImage: null,
       },
     });
 
