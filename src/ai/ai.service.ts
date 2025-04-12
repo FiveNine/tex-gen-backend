@@ -58,22 +58,21 @@ export class AiService {
         throw new BadRequestException('Insufficient credits');
       }
 
-      const job = await this.textureQueue.add('generate', {
-        userId,
-        prompt: dto.prompt,
-        imagePaths: dto.imagePaths,
-        size: '1024x1024',
-      });
-
-      // Create the job record first
-      await this.prisma.generationJob.create({
+      const job = await this.prisma.generationJob.create({
         data: {
-          id: job.id.toString(),
           userId,
           prompt: dto.prompt,
           status: 'pending',
           size: '1024x1024',
         },
+      });
+
+      await this.textureQueue.add('generate', {
+        jobId: job.id.toString(),
+        userId,
+        prompt: dto.prompt,
+        imagePaths: dto.imagePaths,
+        size: '1024x1024',
       });
 
       return { jobId: job.id.toString(), status: 'pending' };
@@ -189,17 +188,23 @@ export class AiService {
         throw new BadRequestException('Insufficient credits');
       }
 
-      const job = await this.textureQueue.add('modify', {
+      const job = await this.prisma.modificationJob.create({
+        data: {
+          userId,
+          generationJobId: dto.jobId,
+          prompt: dto.prompt,
+          status: 'pending',
+          modifications: 0,
+        },
+      });
+
+      await this.textureQueue.add('modify', {
+        jobId: job.id.toString(),
         userId,
         originalJobId: dto.jobId,
         imageUrl: dto.imageUrl,
         prompt: dto.prompt,
         imagePaths: dto.imagePaths,
-      });
-
-      await job.update({
-        ...job.data,
-        jobId: job.id.toString(),
       });
 
       return { jobId: job.id.toString(), status: 'pending' };
@@ -228,14 +233,18 @@ export class AiService {
         throw new BadRequestException('Insufficient credits');
       }
 
-      const job = await this.textureQueue.add('upscale', {
-        userId,
-        originalJobId: jobId,
+      const job = await this.prisma.upscaleJob.create({
+        data: {
+          userId,
+          status: 'pending',
+          originalImage: jobId,
+        },
       });
 
-      await job.update({
-        ...job.data,
+      await this.textureQueue.add('upscale', {
         jobId: job.id.toString(),
+        userId,
+        originalJobId: jobId,
       });
 
       return { jobId: job.id.toString(), status: 'pending' };
