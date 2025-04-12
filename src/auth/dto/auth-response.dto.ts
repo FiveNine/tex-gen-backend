@@ -14,6 +14,12 @@ export class UserResponseDto {
   email: string;
 
   @ApiProperty({
+    description: 'User name',
+    example: 'John Doe',
+  })
+  name: string;
+
+  @ApiProperty({
     description: 'User subscription plan',
     example: 'free',
   })

@@ -14,7 +14,11 @@ import { Request } from 'express';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
-import { AuthResponseDto, TokenResponseDto } from './dto/auth-response.dto';
+import {
+  AuthResponseDto,
+  TokenResponseDto,
+  UserResponseDto,
+} from './dto/auth-response.dto';
 
 interface RequestWithUser extends Request {
   user: {
@@ -39,8 +43,8 @@ export class AuthController {
   })
   @ApiResponse({ status: 400, description: 'Bad request' })
   async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
-    const { email, password } = registerDto;
-    return this.authService.register(email, password);
+    const { email, name, password } = registerDto;
+    return this.authService.register(email, name, password);
   }
 
   @Post('login')
@@ -79,5 +83,17 @@ export class AuthController {
     @Body('refreshToken') refreshToken: string,
   ): Promise<TokenResponseDto> {
     return this.authService.refreshToken(refreshToken);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  @ApiOperation({ summary: 'Get current user' })
+  @ApiResponse({
+    status: 200,
+    description: 'Current user details',
+    type: UserResponseDto,
+  })
+  async me(@Req() req: RequestWithUser): Promise<UserResponseDto> {
+    return this.authService.getUser(req.user.id);
   }
 }

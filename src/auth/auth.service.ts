@@ -1,7 +1,12 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  NotFoundException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
+import { UserResponseDto } from './dto/auth-response.dto';
 
 @Injectable()
 export class AuthService {
@@ -10,7 +15,7 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async register(email: string, password: string) {
+  async register(email: string, name: string, password: string) {
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
     });
@@ -24,6 +29,7 @@ export class AuthService {
     const user = await this.prisma.user.create({
       data: {
         email,
+        name,
         passwordHash,
       },
     });
@@ -34,6 +40,7 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
+        name: user.name,
         subscriptionPlan: user.subscriptionPlan,
         credits: user.credits,
       },
@@ -48,6 +55,7 @@ export class AuthService {
     user: {
       id: string;
       email: string;
+      name: string;
       subscriptionPlan: string;
       credits: number;
     };
@@ -74,6 +82,7 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
+        name: user.name,
         subscriptionPlan: user.subscriptionPlan,
         credits: user.credits,
       },
@@ -91,6 +100,24 @@ export class AuthService {
     }
 
     return this.generateTokens(user);
+  }
+
+  async getUser(userId: string): Promise<UserResponseDto> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      subscriptionPlan: user.subscriptionPlan,
+      credits: user.credits,
+    };
   }
 
   private generateTokens(user: { id: string; email: string }) {
