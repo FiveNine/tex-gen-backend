@@ -62,11 +62,18 @@ export class AiService {
         userId,
         prompt: dto.prompt,
         imagePaths: dto.imagePaths,
+        size: '1024x1024',
       });
 
-      await job.update({
-        ...job.data,
-        jobId: job.id.toString(),
+      // Create the job record first
+      await this.prisma.generationJob.create({
+        data: {
+          id: job.id.toString(),
+          userId,
+          prompt: dto.prompt,
+          status: 'pending',
+          size: '1024x1024',
+        },
       });
 
       return { jobId: job.id.toString(), status: 'pending' };
