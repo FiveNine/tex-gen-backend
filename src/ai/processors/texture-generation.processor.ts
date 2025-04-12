@@ -73,12 +73,16 @@ export class TextureGenerationProcessor {
     }>,
   ) {
     const { jobId, userId, prompt, imagePaths, size } = job.data;
+    this.logger.log(`Starting generation job ${jobId} for user ${userId}`);
 
     try {
       await this.aiService.handleWebhook(jobId, 'processing', 'generate');
 
       let enhancedPrompt = prompt;
       if (imagePaths?.length) {
+        this.logger.log(
+          `Enhancing prompt with ${imagePaths.length} reference images`,
+        );
         enhancedPrompt = await this.generateDallePrompt(
           imagePaths,
           prompt,
@@ -86,16 +90,23 @@ export class TextureGenerationProcessor {
         );
       }
 
+      this.logger.log(`Generating image with prompt: ${enhancedPrompt}`);
       const imageUrl = await this.generateImage(enhancedPrompt, size);
+
+      this.logger.log(`Downloading generated image from ${imageUrl}`);
       const imageBuffer = await this.downloadImage(imageUrl);
+
+      this.logger.log('Generating image description');
       const description = await this.generateImageDescription(imageBuffer);
 
       const timestamp = Date.now();
       const key = `generated/${userId}/${timestamp}.png`;
+      this.logger.log(`Uploading image to S3 with key: ${key}`);
 
       await this.texturesService.uploadToS3(imageBuffer, key);
 
       const slug = await this.generateUniqueSlug(description);
+      this.logger.log(`Creating texture record with slug: ${slug}`);
 
       const texture = await this.prisma.texture.create({
         data: {
@@ -108,12 +119,17 @@ export class TextureGenerationProcessor {
         },
       });
 
+      this.logger.log(`Successfully completed generation job ${jobId}`);
       await this.aiService.handleWebhook(jobId, 'completed', 'generate', [
         imageUrl,
       ]);
 
       return texture;
     } catch (error) {
+      this.logger.error(
+        `Failed generation job ${jobId}: ${error.message}`,
+        error.stack,
+      );
       await this.aiService.handleWebhook(jobId, 'failed', 'generate');
       throw error;
     }
@@ -129,21 +145,31 @@ export class TextureGenerationProcessor {
     }>,
   ) {
     const { jobId, userId, prompt, imageUrl } = job.data;
+    this.logger.log(`Starting modification job ${jobId} for user ${userId}`);
 
     try {
       await this.aiService.handleWebhook(jobId, 'processing', 'modify');
 
+      this.logger.log(`Downloading original image from ${imageUrl}`);
       const imageBuffer = await this.downloadImage(imageUrl);
+
+      this.logger.log(`Modifying image with prompt: ${prompt}`);
       const modifiedImageUrl = await this.editImage(imageBuffer, prompt);
+
+      this.logger.log(`Downloading modified image from ${modifiedImageUrl}`);
       const modifiedBuffer = await this.downloadImage(modifiedImageUrl);
+
+      this.logger.log('Generating image description');
       const description = await this.generateImageDescription(modifiedBuffer);
 
       const timestamp = Date.now();
       const key = `modified/${userId}/${timestamp}_modified.png`;
+      this.logger.log(`Uploading modified image to S3 with key: ${key}`);
 
       await this.texturesService.uploadToS3(modifiedBuffer, key);
 
       const slug = await this.generateUniqueSlug(description);
+      this.logger.log(`Creating texture record with slug: ${slug}`);
 
       const texture = await this.prisma.texture.create({
         data: {
@@ -156,12 +182,17 @@ export class TextureGenerationProcessor {
         },
       });
 
+      this.logger.log(`Successfully completed modification job ${jobId}`);
       await this.aiService.handleWebhook(jobId, 'completed', 'modify', [
         modifiedImageUrl,
       ]);
 
       return texture;
     } catch (error) {
+      this.logger.error(
+        `Failed modification job ${jobId}: ${error.message}`,
+        error.stack,
+      );
       await this.aiService.handleWebhook(jobId, 'failed', 'modify');
       throw error;
     }
@@ -172,35 +203,46 @@ export class TextureGenerationProcessor {
     job: Job<{ jobId: string; userId: string; imageUrl: string }>,
   ) {
     const { jobId, userId, imageUrl } = job.data;
+    this.logger.log(`Starting upscale job ${jobId} for user ${userId}`);
 
     try {
       await this.aiService.handleWebhook(jobId, 'processing', 'upscale');
 
+      this.logger.log(`Downloading original image from ${imageUrl}`);
       const imageBuffer = await this.downloadImage(imageUrl);
+
+      this.logger.log('Upscaling image');
       const upscaledImageUrl = await this.upscaleImage(imageBuffer);
+
+      this.logger.log(`Downloading upscaled image from ${upscaledImageUrl}`);
       const upscaledBuffer = await this.downloadImage(upscaledImageUrl);
 
-      // Generate descriptions for both images
+      this.logger.log('Generating descriptions for both images');
       const originalDescription =
         await this.generateImageDescription(imageBuffer);
       const upscaledDescription =
         await this.generateImageDescription(upscaledBuffer);
 
-      // Upload both versions to S3
       const timestamp = Date.now();
       const originalKey = `textures/${userId}/${timestamp}_original.png`;
       const upscaledKey = `textures/${userId}/${timestamp}_upscaled.png`;
 
-      // Upload original image
+      this.logger.log(
+        `Uploading original image to S3 with key: ${originalKey}`,
+      );
       await this.texturesService.uploadToS3(imageBuffer, originalKey);
 
-      // Upload upscaled image
+      this.logger.log(
+        `Uploading upscaled image to S3 with key: ${upscaledKey}`,
+      );
       await this.texturesService.uploadToS3(upscaledBuffer, upscaledKey);
 
       const originalSlug = await this.generateUniqueSlug(originalDescription);
       const upscaledSlug = await this.generateUniqueSlug(upscaledDescription);
+      this.logger.log(
+        `Creating texture records with slugs: ${originalSlug}, ${upscaledSlug}`,
+      );
 
-      // Create texture records
       const originalTexture = await this.prisma.texture.create({
         data: {
           userId,
@@ -223,12 +265,17 @@ export class TextureGenerationProcessor {
         },
       });
 
+      this.logger.log(`Successfully completed upscale job ${jobId}`);
       await this.aiService.handleWebhook(jobId, 'completed', 'upscale', [
         upscaledImageUrl,
       ]);
 
       return { originalTexture, upscaledTexture };
     } catch (error) {
+      this.logger.error(
+        `Failed upscale job ${jobId}: ${error.message}`,
+        error.stack,
+      );
       await this.aiService.handleWebhook(jobId, 'failed', 'upscale');
       throw error;
     }
