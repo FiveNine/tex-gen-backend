@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsArray, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsEnum } from 'class-validator';
+import { Type } from 'class-transformer';
 
 type DalleSize =
   | '256x256'
@@ -17,13 +18,14 @@ export class GenerateImageDto {
   prompt: string;
 
   @ApiProperty({
-    description: 'Optional array of reference image paths',
-    example: ['path/to/reference1.jpg', 'path/to/reference2.jpg'],
+    description: 'Optional array of reference images',
+    type: 'array',
+    items: { type: 'string', format: 'binary' },
     required: false,
   })
-  @IsArray()
   @IsOptional()
-  imagePaths?: string[];
+  @Type(() => Array)
+  referenceImages?: Express.Multer.File[];
 
   @ApiProperty({
     description: 'The size of the generated image',

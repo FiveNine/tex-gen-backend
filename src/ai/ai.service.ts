@@ -11,6 +11,7 @@ import OpenAI from 'openai';
 import { ConfigService } from '@nestjs/config';
 import { GenerateImageDto } from './dto/generate-image.dto';
 import { ModifyImageDto } from './dto/modify-image.dto';
+import { TexturesService } from '../textures/textures.service';
 
 type DalleSize =
   | '256x256'
@@ -28,6 +29,7 @@ export class AiService {
     @InjectQueue('texture-generation') private textureQueue: Queue,
     private prisma: PrismaService,
     private configService: ConfigService,
+    private texturesService: TexturesService,
   ) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
@@ -50,12 +52,25 @@ export class AiService {
         throw new BadRequestException('Insufficient credits');
       }
 
+      // Upload reference images to S3 if provided
+      let promptImages: string[] = [];
+      if (dto.referenceImages?.length) {
+        promptImages = await Promise.all(
+          dto.referenceImages.map(async (file) => {
+            const key = `temp/${Date.now()}-${userId}-${file.originalname}`;
+            await this.texturesService.uploadToS3(file.buffer, key);
+            return key;
+          }),
+        );
+      }
+
       const job = await this.prisma.generationJob.create({
         data: {
           userId,
           prompt: dto.prompt,
           status: 'pending',
-          size: '1024x1024',
+          size: dto.size || '1024x1024',
+          promptImages,
         },
       });
 
@@ -63,8 +78,8 @@ export class AiService {
         jobId: job.id.toString(),
         userId,
         prompt: dto.prompt,
-        imagePaths: dto.imagePaths,
-        size: '1024x1024',
+        promptImages,
+        size: dto.size || '1024x1024',
       });
 
       return { jobId: job.id.toString(), status: 'pending' };
@@ -183,6 +198,18 @@ export class AiService {
         throw new BadRequestException('Insufficient credits');
       }
 
+      // Upload reference images to S3 if provided
+      let promptImages: string[] = [];
+      if (dto.referenceImages?.length) {
+        promptImages = await Promise.all(
+          dto.referenceImages.map(async (file) => {
+            const key = `temp/${Date.now()}-${userId}-${file.originalname}`;
+            await this.texturesService.uploadToS3(file.buffer, key);
+            return key;
+          }),
+        );
+      }
+
       const job = await this.prisma.modificationJob.create({
         data: {
           userId,
@@ -199,7 +226,7 @@ export class AiService {
         originalJobId: dto.jobId,
         imageUrl: dto.imageUrl,
         prompt: dto.prompt,
-        imagePaths: dto.imagePaths,
+        promptImages,
       });
 
       return { jobId: job.id.toString(), status: 'pending' };

@@ -6,13 +6,17 @@ import {
   Body,
   UseGuards,
   Req,
+  UseInterceptors,
+  UploadedFiles,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiConsumes,
 } from '@nestjs/swagger';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { AiService } from './ai.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Request } from 'express';
@@ -42,6 +46,8 @@ export class AiController {
 
   @Post('generate')
   @ApiOperation({ summary: 'Generate a new texture' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FilesInterceptor('referenceImages'))
   @ApiResponse({
     status: 201,
     description: 'Job created successfully',
@@ -51,9 +57,10 @@ export class AiController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async generateTexture(
     @Body() dto: GenerateImageDto,
+    @UploadedFiles() referenceImages: Express.Multer.File[],
     @CurrentUser() user: { id: string },
   ): Promise<JobResponseDto> {
-    return this.aiService.generateTexture(user.id, dto);
+    return this.aiService.generateTexture(user.id, { ...dto, referenceImages });
   }
 
   @Get('status/:jobId')
@@ -109,6 +116,8 @@ export class AiController {
 
   @Post('modify')
   @ApiOperation({ summary: 'Modify an existing texture' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FilesInterceptor('referenceImages'))
   @ApiResponse({
     status: 201,
     description: 'Modification job created successfully',
@@ -119,9 +128,10 @@ export class AiController {
   @ApiResponse({ status: 404, description: 'Texture not found' })
   async modifyTexture(
     @Body() dto: ModifyImageDto,
+    @UploadedFiles() referenceImages: Express.Multer.File[],
     @CurrentUser() user: { id: string },
   ): Promise<JobResponseDto> {
-    return this.aiService.modifyTexture(user.id, dto);
+    return this.aiService.modifyTexture(user.id, { ...dto, referenceImages });
   }
 
   @Post('upscale')

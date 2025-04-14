@@ -68,23 +68,23 @@ export class TextureGenerationProcessor {
       jobId: string;
       userId: string;
       prompt: string;
-      imagePaths?: string[];
+      promptImages?: string[];
       size: DalleSize;
     }>,
   ) {
-    const { jobId, userId, prompt, imagePaths, size } = job.data;
+    const { jobId, userId, prompt, promptImages, size } = job.data;
     this.logger.log(`Starting generation job ${jobId} for user ${userId}`);
 
     try {
       await this.aiService.handleWebhook(jobId, 'processing', 'generate');
 
       let enhancedPrompt = prompt;
-      if (imagePaths?.length) {
+      if (promptImages?.length) {
         this.logger.log(
-          `Enhancing prompt with ${imagePaths.length} reference images`,
+          `Enhancing prompt with ${promptImages.length} reference images`,
         );
         enhancedPrompt = await this.generateDallePrompt(
-          imagePaths,
+          promptImages,
           prompt,
           size,
         );
@@ -141,10 +141,11 @@ export class TextureGenerationProcessor {
       jobId: string;
       userId: string;
       prompt: string;
+      promptImages?: string[];
       imageUrl: string;
     }>,
   ) {
-    const { jobId, userId, prompt, imageUrl } = job.data;
+    const { jobId, userId, prompt, promptImages, imageUrl } = job.data;
     this.logger.log(`Starting modification job ${jobId} for user ${userId}`);
 
     try {
@@ -153,8 +154,23 @@ export class TextureGenerationProcessor {
       this.logger.log(`Downloading original image from ${imageUrl}`);
       const imageBuffer = await this.downloadImage(imageUrl);
 
-      this.logger.log(`Modifying image with prompt: ${prompt}`);
-      const modifiedImageUrl = await this.editImage(imageBuffer, prompt);
+      let enhancedPrompt = prompt;
+      if (promptImages?.length) {
+        this.logger.log(
+          `Enhancing prompt with ${promptImages.length} reference images`,
+        );
+        enhancedPrompt = await this.generateDallePrompt(
+          promptImages,
+          prompt,
+          '1024x1024',
+        );
+      }
+
+      this.logger.log(`Modifying image with prompt: ${enhancedPrompt}`);
+      const modifiedImageUrl = await this.editImage(
+        imageBuffer,
+        enhancedPrompt,
+      );
 
       this.logger.log(`Downloading modified image from ${modifiedImageUrl}`);
       const modifiedBuffer = await this.downloadImage(modifiedImageUrl);
@@ -281,10 +297,10 @@ export class TextureGenerationProcessor {
     }
   }
 
-  private async encodeImage(imagePath: string): Promise<string> {
+  private async encodeImage(imageUrl: string): Promise<string> {
     try {
-      const file = await readFile(join(process.cwd(), imagePath));
-      return file.toString('base64');
+      const buffer = await this.downloadImage(imageUrl);
+      return buffer.toString('base64');
     } catch (error) {
       this.logger.error(`Error encoding image: ${error.message}`);
       throw new Error('Failed to process image');
@@ -292,13 +308,13 @@ export class TextureGenerationProcessor {
   }
 
   private async generateDallePrompt(
-    imagePaths: string[],
+    promptImages: string[],
     userPrompt: string,
     size: DalleSize,
   ): Promise<string> {
     try {
       const base64Images = await Promise.all(
-        imagePaths.map((path) => this.encodeImage(path)),
+        promptImages.map((imageUrl) => this.encodeImage(imageUrl)),
       );
 
       const messageContent: ChatCompletionContentPart[] = [

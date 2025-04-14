@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsEnum } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class ModifyImageDto {
   @ApiProperty({
@@ -24,11 +25,12 @@ export class ModifyImageDto {
   prompt: string;
 
   @ApiProperty({
-    description: 'Optional array of reference image paths',
-    example: ['path/to/reference1.jpg', 'path/to/reference2.jpg'],
+    description: 'Optional array of reference images',
+    type: 'array',
+    items: { type: 'string', format: 'binary' },
     required: false,
   })
-  @IsArray()
   @IsOptional()
-  imagePaths?: string[];
+  @Type(() => Array)
+  referenceImages?: Express.Multer.File[];
 }
